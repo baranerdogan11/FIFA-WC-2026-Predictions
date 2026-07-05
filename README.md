@@ -84,6 +84,25 @@ reproducible and leakage-free.
 | Elo-only logistic | 0.887 | 58.4% |
 | **XGBoost (this repo)** | **0.869** | **60.4%** |
 
+### Calibration audit
+
+`calibration_audit.py` checks the probabilities themselves on the 399
+out-of-time 2026 matches (model trained <2026 only):
+
+![Reliability diagram](outputs/calibration.png)
+
+| Class | Mean predicted | Observed | ECE |
+|---|---|---|---|
+| Home win | 0.500 | 0.496 | 0.061 |
+| Draw | 0.235 | 0.251 | 0.038 |
+| Away win | 0.265 | 0.253 | 0.052 |
+
+All classes track the diagonal within sampling noise (~50 matches/bin);
+draws are underpredicted by only 1.6pp. Temperature scaling fitted on
+2023-25 finds T=0.87 (slight underconfidence) improving 2026 log loss just
+0.872 -> 0.870 -- within noise, so the deployed probabilities are used
+as-is. Verdict: the model's probabilities mean what they say.
+
 ### Does historical data beat tournament stats? (backtest)
 
 `evaluate_blend.py` answers this without leakage: XGBoost trained only on
