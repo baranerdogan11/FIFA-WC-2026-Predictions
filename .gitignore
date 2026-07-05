@@ -1,0 +1,13 @@
+# raw + derived data (regenerate via src/download_data.py and the pipeline)
+data/
+models/
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
