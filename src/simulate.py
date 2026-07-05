@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 
+from stats_model import build_ratings, match_probs_stats
+
 ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
 N_SIMS = 20_000
@@ -113,16 +115,29 @@ def main():
     ap.add_argument("--xg", type=float, default=0.0, metavar="W",
                     help="blend weight for tournament xG in form features "
                          "(0=goals only, 0.5=equal blend)")
+    ap.add_argument("--stats-only", action="store_true",
+                    help="ignore the historical XGBoost model entirely; "
+                         "probabilities from 2026 tournament xG/shots/SoT/"
+                         "possession ratings only (no venue effect, "
+                         "50/50 penalty shootouts)")
     args = ap.parse_args()
     booster, features, state, h2h = load(xg_blend=args.xg)
-    if args.xg > 0:
+    if args.stats_only:
+        ratings = build_ratings()
+        print("[stats-only mode: 2026 tournament xG/shots/SoT/possession]")
+    elif args.xg > 0:
         print(f"[xG blend active: weight={args.xg}]")
+
+    def get_probs(a, b, venue, date):
+        if args.stats_only:
+            return match_probs_stats(ratings, a, b)
+        return match_probs(booster, features, state, h2h, a, b, venue, date)
 
     # precompute probabilities for every possible pairing per slot
     slot_teams = {s: [a, b] for s, a, b, _, _ in R16}
     probs = {}
     for s, a, b, venue, date in R16:
-        probs[(s, a, b)] = match_probs(booster, features, state, h2h, a, b, venue, date)
+        probs[(s, a, b)] = get_probs(a, b, venue, date)
     rounds = [(QF, slot_teams), ]
     # build possible team sets per slot progressively
     poss = dict(slot_teams)
@@ -130,9 +145,9 @@ def main():
         for s, sa, sb, date in rnd:
             poss[s] = poss[sa] + poss[sb]
             for a, b in itertools.product(poss[sa], poss[sb]):
-                probs[(s, a, b)] = match_probs(booster, features, state, h2h, a, b, "USA", date)
+                probs[(s, a, b)] = get_probs(a, b, "USA", date)
 
-    pens = {(a, b): pens_p_home(state, a, b)
+    pens = {(a, b): 0.5 if args.stats_only else pens_p_home(state, a, b)
             for a in state for b in state
             if a in poss[104] and b in poss[104] and a != b}
 
@@ -179,7 +194,12 @@ def main():
         "p_champion": [counters["W"][t] / N_SIMS for t in teams],
     }).sort_values("p_champion", ascending=False)
     (ROOT / "outputs").mkdir(exist_ok=True)
-    fname = "championship_probabilities_xg.csv" if args.xg > 0 else "championship_probabilities.csv"
+    if args.stats_only:
+        fname = "championship_probabilities_stats.csv"
+    elif args.xg > 0:
+        fname = "championship_probabilities_xg.csv"
+    else:
+        fname = "championship_probabilities.csv"
     out.to_csv(ROOT / "outputs" / fname, index=False)
     print(f"\nsaved -> outputs/{fname}")
 

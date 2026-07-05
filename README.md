@@ -8,17 +8,26 @@ The project freezes all data at **2026-07-03** (end of the Round of 32) and
 treats two Round-of-16 ties as unplayed holdouts: **Morocco vs Canada** and
 **France vs Paraguay**. Both were predicted correctly (Morocco 68%, France 76%).
 
-## Headline result (20,000 bracket simulations)
+## Headline results (20,000 bracket simulations each)
 
-| Team | Reach SF | Reach Final | Champion |
+Championship probability under three model variants:
+
+| Team | XGBoost (Elo/form) | + xG blend | 2026 stats only |
 |---|---|---|---|
-| Argentina | 57.6% | 36.5% | **20.9%** |
-| Spain | 49.9% | 32.8% | **20.4%** |
-| France | 58.5% | 33.1% | **19.4%** |
-| England | 30.9% | 15.8% | 7.6% |
-| Brazil | 30.8% | 14.5% | 6.6% |
+| Spain | 20.4% | **20.4%** | **29.4%** |
+| Argentina | **20.9%** | 19.9% | 6.5% |
+| France | 19.4% | 18.9% | 10.3% |
+| Brazil | 6.6% | 7.4% | 12.8% |
+| England | 7.6% | 7.8% | 7.3% |
+| Canada | 0.4% | 0.4% | 9.4% |
 
-Full table: [`outputs/championship_probabilities.csv`](outputs/championship_probabilities.csv)
+The stats-only column uses nothing but 2026 tournament xG, shots, shots on
+target, and possession. The divergence is informative: Spain dominates on
+underlying numbers (+1.80 xG diff, 0 goals conceded); Argentina's title odds
+rest heavily on pedigree (Elo) rather than tournament chance creation; and
+Canada's shot dominance is invisible to Elo-based models.
+
+Full tables: [`outputs/`](outputs/)
 
 ## Data sources
 
@@ -57,6 +66,15 @@ reproducible and leakage-free.
    finishing noise. Effect: Spain (tournament-best +1.80 xG diff, 0 goals
    conceded) overtakes Argentina as narrow favourite.
    Output: `outputs/championship_probabilities_xg.csv`.
+5. **Stats-only variant** (`simulate.py --stats-only`): discards the
+   historical model entirely. `stats_model.py` builds opponent-adjusted
+   attack/defence ratings from the 88 pre-cutoff 2026 matches using a
+   composite of xG (55%), shots on target (30%), and shots (15%), with
+   possession as a multiplicative control factor; matchups become Poisson
+   scoring rates. 88 matches is far too few to train XGBoost on without
+   overfitting, so this rating approach is the statistically sound way to
+   use tournament stats exclusively. No venue effect; penalty shootouts
+   are 50/50. Output: `outputs/championship_probabilities_stats.csv`.
 
 ### Performance (out-of-time)
 
@@ -76,6 +94,7 @@ python src/train_model.py              # train + evaluate XGBoost
 python src/build_tournament_stats.py   # aggregate xG/shots/possession
 python src/simulate.py                 # 20k bracket sims (goals-based)
 python src/simulate.py --xg 0.5        # 20k sims with xG-blended form
+python src/simulate.py --stats-only    # 20k sims, 2026 tournament stats only
 ```
 
 ## Repository structure
