@@ -6,6 +6,7 @@ XGBoost model using team state frozen at the 2026-07-03 cutoff. Neutral-venue
 predictions are symmetrized by averaging both team orderings. Knockout draws
 go to penalties with a mild Elo-based tilt.
 """
+import argparse
 import itertools
 import json
 from pathlib import Path
@@ -18,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PROC = ROOT / "data" / "processed"
 N_SIMS = 20_000
 RNG = np.random.default_rng(42)
+
+# Sofascore team names -> results.csv names
+XG_NAME_MAP = {"USA": "United States"}
 
 # (slot, teamA, teamB, venue_country, date)
 R16 = [
@@ -38,12 +42,23 @@ FINAL = (104, 101, 102, "2026-07-19")
 HOST = {"USA": "United States", "MEX": "Mexico", "CAN": "Canada"}
 
 
-def load():
+def load(xg_blend: float = 0.0):
     booster = xgb.Booster()
     booster.load_model(ROOT / "models" / "xgb_wc2026.json")
     features = json.load(open(ROOT / "models" / "features.json"))
     ts = json.load(open(PROC / "team_state.json"))
-    return booster, features, ts["state"], ts["h2h"]
+    state = ts["state"]
+    if xg_blend > 0:
+        # blend goals-based recent form with cutoff-safe tournament xG rates:
+        # xG estimates the same latent attack/defence rates with less
+        # finishing noise (Sofascore per-match data, holdout games excluded)
+        tstats = pd.read_csv(PROC / "tournament_team_stats.csv")
+        for r in tstats.itertuples():
+            name = XG_NAME_MAP.get(r.team, r.team)
+            s = state[name]
+            s["gf5"] = (1 - xg_blend) * s["gf5"] + xg_blend * r.xg_for
+            s["ga5"] = (1 - xg_blend) * s["ga5"] + xg_blend * r.xg_against
+    return booster, features, state, ts["h2h"]
 
 
 def match_probs(booster, features, state, h2h, home, away, venue, date):
@@ -94,7 +109,14 @@ def pens_p_home(state, home, away):
 
 
 def main():
-    booster, features, state, h2h = load()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--xg", type=float, default=0.0, metavar="W",
+                    help="blend weight for tournament xG in form features "
+                         "(0=goals only, 0.5=equal blend)")
+    args = ap.parse_args()
+    booster, features, state, h2h = load(xg_blend=args.xg)
+    if args.xg > 0:
+        print(f"[xG blend active: weight={args.xg}]")
 
     # precompute probabilities for every possible pairing per slot
     slot_teams = {s: [a, b] for s, a, b, _, _ in R16}
@@ -157,8 +179,9 @@ def main():
         "p_champion": [counters["W"][t] / N_SIMS for t in teams],
     }).sort_values("p_champion", ascending=False)
     (ROOT / "outputs").mkdir(exist_ok=True)
-    out.to_csv(ROOT / "outputs" / "championship_probabilities.csv", index=False)
-    print("\nsaved -> outputs/championship_probabilities.csv")
+    fname = "championship_probabilities_xg.csv" if args.xg > 0 else "championship_probabilities.csv"
+    out.to_csv(ROOT / "outputs" / fname, index=False)
+    print(f"\nsaved -> outputs/{fname}")
 
 
 def play(p, a, b, pens):

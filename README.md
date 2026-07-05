@@ -28,6 +28,8 @@ Full table: [`outputs/championship_probabilities.csv`](outputs/championship_prob
 | Same repo, `shootouts.csv` | Penalty shootout winners | CSV on GitHub |
 | [eloratings.net](http://www.eloratings.net) | Current World Football Elo snapshot (validation only) | TSV endpoint |
 | FIFA official API | WC2026 match calendar, scores, bracket slots, venues | `api.fifa.com/api/v3` (competition 17, season 285023) |
+| Sofascore | Per-match xG, possession, shots for all 90 WC2026 matches | browser-collected, committed at `data/raw/sofascore_match_stats.csv` |
+| [FBref](https://fbref.com) | Squad possession + shooting aggregates (cross-check) | browser-collected, committed at `data/raw/fbref_squad_stats.csv` |
 
 Raw data is **not** committed (third-party redistribution rights are unclear);
 `src/download_data.py` fetches everything in seconds. Historical per-match Elo
@@ -48,6 +50,13 @@ reproducible and leakage-free.
    predictions symmetrized over both team orderings; host advantage applied
    for Mexico (Azteca) and the USA (all US venues). Knockout draws resolved
    by a mild Elo-tilted penalty model. 20,000 Monte Carlo runs.
+4. **xG variant** (`simulate.py --xg 0.5`): blends each team's goals-based
+   form features 50/50 with cutoff-safe tournament xG rates from Sofascore
+   (per-match data aggregated by `build_tournament_stats.py`, holdout games
+   excluded). xG estimates the same latent attack/defence rates with less
+   finishing noise. Effect: Spain (tournament-best +1.80 xG diff, 0 goals
+   conceded) overtakes Argentina as narrow favourite.
+   Output: `outputs/championship_probabilities_xg.csv`.
 
 ### Performance (out-of-time)
 
@@ -61,10 +70,12 @@ reproducible and leakage-free.
 
 ```bash
 pip install -r requirements.txt
-python src/download_data.py     # fetch raw data (~4 MB)
-python src/build_dataset.py     # features + team state at cutoff
-python src/train_model.py       # train + evaluate XGBoost
-python src/simulate.py          # 20k bracket sims -> outputs/
+python src/download_data.py            # fetch raw data (~4 MB)
+python src/build_dataset.py            # features + team state at cutoff
+python src/train_model.py              # train + evaluate XGBoost
+python src/build_tournament_stats.py   # aggregate xG/shots/possession
+python src/simulate.py                 # 20k bracket sims (goals-based)
+python src/simulate.py --xg 0.5        # 20k sims with xG-blended form
 ```
 
 ## Repository structure
@@ -83,9 +94,9 @@ models/              # created by train_model.py (gitignored)
 
 ## Limitations
 
-- Results-based features only: no xG, shots, or squad market values
-  (FBref and Transfermarkt block automated access; FIFA API possession
-  fields are sparsely populated).
+- xG enters only at simulation time (feature blend); the historical training
+  set has no xG, so the model itself is trained on results-based features.
+  Squad market values remain unused (Transfermarkt blocks automated access).
 - Team state is frozen at the cutoff: injuries, suspensions, and lineup
   news are not captured.
 - The penalty shootout model is a mild Elo logistic, not a dedicated model.

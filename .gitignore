@@ -1,5 +1,12 @@
-# raw + derived data (regenerate via src/download_data.py and the pipeline)
-data/
+# data: everything regenerable is ignored (src/download_data.py + pipeline);
+# the two browser-collected stats files are committed because no script can
+# re-fetch them (FBref/Sofascore block non-browser access)
+data/*
+!data/raw/
+data/raw/*
+!data/raw/sofascore_match_stats.csv
+!data/raw/fbref_squad_stats.csv
+
 models/
 
 # python
