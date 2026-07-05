@@ -129,7 +129,11 @@ pip install -r requirements.txt
 python src/download_data.py            # fetch raw data (~4 MB)
 python src/build_dataset.py            # features + team state at cutoff
 python src/train_model.py              # train + evaluate XGBoost
-python src/build_tournament_stats.py   # aggregate xG/shots/possession
+python src/build_tournament_stats.py   # per-game own + opponent metrics
+                                       #   -> team_match_stats.csv (long format,
+                                       #      xG conceded, opp shots/SoT/possession)
+                                       #   -> tournament_team_stats.csv (aggregates,
+                                       #      for- and against- of every metric)
 python src/simulate.py                 # 20k bracket sims (default: historical XGB)
 python src/simulate.py --xg 0.5        # xG-blended form features
 python src/simulate.py --blend 0.2     # ensemble: 80% XGB + 20% 2026 stats
