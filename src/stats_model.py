@@ -29,7 +29,13 @@ SCORE_FIX = {  # fixtures decided on penalties: true score after 120'
     frozenset(("Netherlands", "Morocco")): (1, 1),
     frozenset(("Australia", "Egypt")): (1, 1),
 }
-NAME_MAP = {"USA": "United States"}  # Sofascore -> results.csv names
+# Sofascore -> results.csv names
+NAME_MAP = {
+    "USA": "United States", "Czechia": "Czech Republic",
+    "Türkiye": "Turkey", "Cabo Verde": "Cape Verde",
+    "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+    "Côte d'Ivoire": "Ivory Coast",
+}
 
 W_XG, W_SOT, W_SH = 0.55, 0.30, 0.15
 POSS_EXP = 0.25
@@ -45,8 +51,9 @@ def _load_matches() -> pd.DataFrame:
     return df
 
 
-def build_ratings() -> dict:
-    df = _load_matches()
+def build_ratings(df: pd.DataFrame = None) -> dict:
+    if df is None:
+        df = _load_matches()
     goals = df.home_score.sum() + df.away_score.sum()
     conv_sot = goals / (df.sot_h.sum() + df.sot_a.sum())
     conv_shot = goals / (df.shots_h.sum() + df.shots_a.sum())

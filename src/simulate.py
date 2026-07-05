@@ -120,18 +120,28 @@ def main():
                          "probabilities from 2026 tournament xG/shots/SoT/"
                          "possession ratings only (no venue effect, "
                          "50/50 penalty shootouts)")
+    ap.add_argument("--blend", type=float, default=0.0, metavar="W",
+                    help="ensemble weight for the 2026 stats model: "
+                         "P = (1-W)*P_xgb + W*P_stats. Backtest on 64 "
+                         "tournament matches found W=0 optimal "
+                         "(see evaluate_blend.py)")
     args = ap.parse_args()
     booster, features, state, h2h = load(xg_blend=args.xg)
+    ratings = build_ratings() if (args.stats_only or args.blend > 0) else None
     if args.stats_only:
-        ratings = build_ratings()
         print("[stats-only mode: 2026 tournament xG/shots/SoT/possession]")
+    elif args.blend > 0:
+        print(f"[ensemble: {1-args.blend:.0%} historical XGB + {args.blend:.0%} 2026 stats]")
     elif args.xg > 0:
         print(f"[xG blend active: weight={args.xg}]")
 
     def get_probs(a, b, venue, date):
         if args.stats_only:
             return match_probs_stats(ratings, a, b)
-        return match_probs(booster, features, state, h2h, a, b, venue, date)
+        p = match_probs(booster, features, state, h2h, a, b, venue, date)
+        if args.blend > 0:
+            p = (1 - args.blend) * p + args.blend * match_probs_stats(ratings, a, b)
+        return p
 
     # precompute probabilities for every possible pairing per slot
     slot_teams = {s: [a, b] for s, a, b, _, _ in R16}
@@ -196,6 +206,8 @@ def main():
     (ROOT / "outputs").mkdir(exist_ok=True)
     if args.stats_only:
         fname = "championship_probabilities_stats.csv"
+    elif args.blend > 0:
+        fname = "championship_probabilities_blend.csv"
     elif args.xg > 0:
         fname = "championship_probabilities_xg.csv"
     else:

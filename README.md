@@ -84,6 +84,25 @@ reproducible and leakage-free.
 | Elo-only logistic | 0.887 | 58.4% |
 | **XGBoost (this repo)** | **0.869** | **60.4%** |
 
+### Does historical data beat tournament stats? (backtest)
+
+`evaluate_blend.py` answers this without leakage: XGBoost trained only on
+pre-tournament matches, the stats model rebuilt per match from an expanding
+window of prior tournament games, both scored on 64 WC2026 matches:
+
+| Ensemble (stats share w) | Log loss | Accuracy |
+|---|---|---|
+| **w=0.0 — historical XGB only** | **0.773** | **68.8%** |
+| w=0.2 | 0.793 | 68.8% |
+| w=0.5 | 0.838 | 65.6% |
+| w=1.0 — 2026 stats only | 1.118 | 59.4% |
+
+Historical data wins decisively: 3-5 matches of xG per team is too noisy to
+stand alone (the pure stats model scores worse than the constant prior).
+The default simulation therefore uses the historical model; `--blend W`
+ensembles the stats model in at any weight, and `--stats-only` shows what
+the eye-test metrics alone believe.
+
 ## Quickstart
 
 ```bash
@@ -92,9 +111,11 @@ python src/download_data.py            # fetch raw data (~4 MB)
 python src/build_dataset.py            # features + team state at cutoff
 python src/train_model.py              # train + evaluate XGBoost
 python src/build_tournament_stats.py   # aggregate xG/shots/possession
-python src/simulate.py                 # 20k bracket sims (goals-based)
-python src/simulate.py --xg 0.5        # 20k sims with xG-blended form
-python src/simulate.py --stats-only    # 20k sims, 2026 tournament stats only
+python src/simulate.py                 # 20k bracket sims (default: historical XGB)
+python src/simulate.py --xg 0.5        # xG-blended form features
+python src/simulate.py --blend 0.2     # ensemble: 80% XGB + 20% 2026 stats
+python src/simulate.py --stats-only    # 2026 tournament stats only
+python src/evaluate_blend.py           # backtest: XGB vs stats vs blends
 ```
 
 ## Repository structure
